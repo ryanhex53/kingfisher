@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Kingfisher</title>
+  <link rel="stylesheet" href="assets/bootstrap-4.6.0-dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+  <div id="app" class="container-fluid p-0">
+    <div class="card">
+      <div class="card-header">
+        <nav>
+          <div class="nav nav-tabs card-header-tabs" id="nav-tab" role="tablist">
+            <div class="navbar-brand">🐦Kingfisher</div>
+            <a class="nav-link active" id="clipboard-tab" data-toggle="tab" href="#nav-clipboard" role="tab"
+              aria-controls="nav-clipboard" aria-selected="true">首页</a>
+            <a class="nav-link" id="file-tab" data-toggle="tab" href="#nav-file" role="tab" aria-controls="nav-file"
+              aria-selected="false">文件传递</a>
+            <a class="nav-link" id="settings-tab" data-toggle="tab" href="#nav-settings" role="tab"
+              aria-controls="nav-settings" aria-selected="false">偏好设置</a>
+          </div>
+        </nav>
+      </div>
+      <!-- Tab panes -->
+      <div class="card-body tab-content m-2" id="nav-tabContent">
+        <!-- Clipboard -->
+        <div class="tab-pane fade show active" id="nav-clipboard" role="tabpanel" aria-labelledby="clipboard-tab">
+          <div class="alert alert-danger" v-if='partners.length===0'>没有在线的伙伴</div>
+          <div class="alert alert-success" v-else>在线的伙伴</div>
+          <ul>
+            <li v-for='p in partners'>{{p.host_name}}<kbd>{{p.remote_address}}</kbd></li>
+          </ul>
+        </div>
+        <!-- FileDragDrop -->
+        <div class="tab-pane fade" id="nav-file" role="tabpanel" aria-labelledby="file-tab">
+          <div class="center-box">
+            <div class="progress" v-show='file_path' style='height: 25px;margin: 10px;'>
+              <div class="progress-bar progress-bar-striped bg-warning" role="progressbar"
+                style="width: 100%;padding: 10px;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"
+                v-text='file_path'></div>
+            </div>
+            <div>
+              <button class="btn btn-primary" @click='chooseFile'>选择</button>或拖动文件到此处
+            </div>
+          </div>
+        </div>
+        <!-- Settings -->
+        <div class="tab-pane fade" id="nav-settings" role="tabpanel" aria-labelledby="settings-tab">
+          <div class="alert alert-success" role="alert">
+            <span>当前配对码 <strong v-text='pair_code'></strong></span>
+            <button class="btn btn-sm btn-success float-right" data-toggle="modal" data-target="#codeModal">修改</button>
+          </div>
+          <div class="alert alert-warning" role="alert">
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">文件存储路径</span>
+              </div>
+              <input type="text" class="form-control" placeholder="选择文件存储目录" aria-label="file path"
+                aria-describedby="button-addon2" :value='file_folder' disabled>
+              <div class="input-group-append">
+                <button class="btn btn-primary" type="button" id="button-addon2" @click='chooseFolder'>选择</button>
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-info" role="alert">
+            <input type="checkbox" name="startup" id="startup_chk" v-model='autostart' @change='toggleAutostart'>
+            <label for="startup_chk">开机启动</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade" id="codeModal" tabindex="-1" aria-labelledby="codeModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="codeModalLabel">修改配对码</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div id="temp_code" class="alert alert-success" role="alert">
+              <strong v-text='temp_code'></strong>
+              <button type="button" class="close" v-show='temp_code' aria-label="Close" @click='temp_code=""'>
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <button class="btn btn-success btn-sm m-1" v-for='c in all_code' v-text='c'
+              @click='temp_code=temp_code.length<4?temp_code+c:temp_code'></button>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+            <button type="button" class="btn btn-primary" :disabled='temp_code.length!=4'
+              @click='changePairCode'>确认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="assets/vue.min.js"></script>
+  <script src="assets/jquery-3.5.1.slim.min.js" onload="window.$=window.jQuery=module.exports;"></script>
+  <script src="assets/bootstrap-4.6.0-dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const { ipcRenderer, remote } = require('electron');
+    const { hostname } = require('os');
+    const axios = require('axios');
+    const Store = require('electron-store');
+    const store = new Store();
+    const vue = new Vue({
+      el: '#app',
+      data: {
+        autostart: store.get('autostart', false),
+        file_folder: store.get('file_folder', remote.app.getPath('desktop')),
+        file_path: '',
+        all_code: require('../helper').CODE.split(''),
+        pair_code: store.get('pair_code', 'E418'),
+        temp_code: '',
+        partners: []
+      },
+      methods: {
+        updatePartner() {
+          this.partners = Object.values(remote.getGlobal('all_partner') || {}).filter(p => p != undefined);
+        },
+        toggleAutostart() {
+          ipcRenderer.send('autostart-changed', this.autostart);
+        },
+        chooseFile() {
+          let vm = this;
+          remote.dialog.showOpenDialog({
+            title: 'Choose File',
+            properties: ['openFile']
+          }).then(obj => {
+            if (!obj.canceled) {
+              vm.file_path = obj.filePaths[0];
+              vm.uploadFile();
+            }
+          });
+        },
+        chooseFolder() {
+          let vm = this;
+          remote.dialog.showOpenDialog({
+            title: 'Choose Folder',
+            properties: ['openDirectory']
+          }).then(obj => {
+            if (!obj.canceled) {
+              vm.file_folder = obj.filePaths[0];
+              store.set('file_folder', vm.file_folder);
+            }
+          });
+        },
+        changePairCode() {
+          if (this.temp_code != this.pair_code) {
+            this.pair_code = this.temp_code;
+            ipcRenderer.send('pair-code-change', this.pair_code);
+            store.set('pair_code', this.pair_code);
+            this.partners.forEach((p, i) => {
+              axios.delete(`http://${p.remote_address}:${p.http_port}/partner`);
+            });
+            this.partners = [];
+            this.temp_code = '';
+          }
+          $('#codeModal').modal('hide');
+        },
+        uploadFile() {
+          let vm = this;
+          let progress_bar = $('.progress-bar');
+          progress_bar.removeClass('bg-danger bg-success').addClass('bg-warning progress-bar-animated progress-bar-striped');
+          console.log('File Path of choose: ', vm.file_path);
+          if (vm.file_path) {
+            ipcRenderer.invoke('upload', vm.file_path).then(res => {
+              if (true === res) {
+                progress_bar.addClass('bg-success').removeClass('bg-warning progress-bar-animated progress-bar-striped');
+              } else {
+                progress_bar.addClass('bg-danger').removeClass('bg-warning progress-bar-animated progress-bar-striped').text(res);
+              }
+            });
+          }
+        }
+      }
+    });
+    //
+    ipcRenderer.on('partner-change', (e, p) => {
+      vue.updatePartner();
+      if (p) {
+        console.log(p);
+        axios.post(`http://${p.remote_address}:${p.http_port}/partner`, {
+          http_port: remote.getGlobal('http_port'),
+          host_name: hostname()
+        });
+      }
+    });
+    //
+    const file_drop = document.getElementById('nav-file');
+    file_drop.addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      for (const f of event.dataTransfer.files) {
+        // Using the path attribute to get absolute file path 
+        console.log('File Path of dragged files: ', f.path)
+        vue.file_path = f.path;
+        vue.uploadFile();
+        break;
+      }
+      file_drop.classList.remove('dashed-border');
+    });
+    file_drop.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    file_drop.addEventListener('dragenter', (event) => {
+      file_drop.classList.add('dashed-border');
+      console.log('File is in the Drop Space');
+    });
+    file_drop.addEventListener('dragleave', (event) => {
+      file_drop.classList.remove('dashed-border');
+      console.log('File has left the Drop Space');
+    });
+    // check if partner is online
+    setInterval(() => {
+      vue.partners.forEach((p, i) => {
+        if (p == undefined)
+          return;
+        axios.get(`http://${p.remote_address}:${p.http_port}/ping`, { timeout: 1000 }).catch(err => {
+          ipcRenderer.invoke('partner-off', p).then(success => {
+            if (success) {
+              vue.partners.splice(i, 1);
+            }
+          });
+        });
+      });
+    }, 2000);
+  </script>
+</body>
+
+</html>
