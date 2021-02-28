@@ -33,7 +33,8 @@ const createWindow = () => {
   mainWindow.once('ready-to-show', mainWindow.show);
 
   // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+  if (process.env.NODE_ENV !== 'production')
+    mainWindow.webContents.openDevTools();
 };
 
 // This method will be called when Electron has finished
@@ -107,7 +108,7 @@ server.on('message', message => {
     case 'put-clipboard':
       if (message.body.text) {
         clipboard.writeText(message.body.text);
-      } else if (message.files.file && 'image/jpeg' === message.files.file.type) {
+      } else if (message.files.file && ['image/jpeg', 'image/png'].includes(message.files.file.type)) {
         clipboard.writeImage(nativeImage.createFromPath(message.files.file.path));
       }
       break;
@@ -149,13 +150,14 @@ ipcMain.on('pair-code-change', (e, pair_code) => {
   });
   global.all_partner = {};
 });
-ipcMain.handle('upload', async (e, file_path) => {
+ipcMain.handle('upload', async (e, file_path, dest) => {
+  dest = dest || 'file';
   let data = new FormData();
   data.append('file', fs.createReadStream(file_path));
   const headers = data.getHeaders();
   const partners = Object.values(global.all_partner || {}).filter(p => p != undefined);
   try {
-    await Promise.all(partners.map(p => axios.post(`http://${p.remote_address}:${p.http_port}/file`, data, {
+    await Promise.all(partners.map(p => axios.post(`http://${p.remote_address}:${p.http_port}/${dest}`, data, {
       headers,
       maxContentLength: Infinity,
       maxBodyLength: Infinity
@@ -171,5 +173,3 @@ ipcMain.handle('partner-off', (e, p) => {
   console.log('partner off', p);
   return true;
 });
-//
-console.log('clipboard formats', clipboard.readImage().getSize());

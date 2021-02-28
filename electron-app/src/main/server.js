@@ -9,7 +9,7 @@ router.get('/ping', (ctx, next) => {
   ctx.body = Date.now();
 });
 
-router.put('/clipboard', (ctx, next) => {
+router.post('/clipboard', (ctx, next) => {
   console.log(ctx.request.body);
   console.log(ctx.request.files);
   process.send({

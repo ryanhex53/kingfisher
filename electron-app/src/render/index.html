@@ -17,11 +17,11 @@
           <div class="nav nav-tabs card-header-tabs" id="nav-tab" role="tablist">
             <div class="navbar-brand">🐦Kingfisher</div>
             <a class="nav-link active" id="clipboard-tab" data-toggle="tab" href="#nav-clipboard" role="tab"
-              aria-controls="nav-clipboard" aria-selected="true">首页</a>
+              aria-controls="nav-clipboard" aria-selected="true">Home</a>
             <a class="nav-link" id="file-tab" data-toggle="tab" href="#nav-file" role="tab" aria-controls="nav-file"
-              aria-selected="false">文件传递</a>
+              aria-selected="false">File Transfer</a>
             <a class="nav-link" id="settings-tab" data-toggle="tab" href="#nav-settings" role="tab"
-              aria-controls="nav-settings" aria-selected="false">偏好设置</a>
+              aria-controls="nav-settings" aria-selected="false">Settings</a>
           </div>
         </nav>
       </div>
@@ -29,11 +29,38 @@
       <div class="card-body tab-content m-2" id="nav-tabContent">
         <!-- Clipboard -->
         <div class="tab-pane fade show active" id="nav-clipboard" role="tabpanel" aria-labelledby="clipboard-tab">
-          <div class="alert alert-danger" v-if='partners.length===0'>没有在线的伙伴</div>
-          <div class="alert alert-success" v-else>在线的伙伴</div>
-          <ul>
-            <li v-for='p in partners'>{{p.host_name}}<kbd>{{p.remote_address}}</kbd></li>
-          </ul>
+          <div class="alert alert-info mb-1" role="alert">Local clipboard</div>
+          <div class="row mb-2">
+            <div class="col" v-if='clipboard_text'>
+              <div class="card">
+                <div class="card-body">
+                  <p class="card-text" v-text='clipboard_text'></p>
+                </div>
+                <div class="card-footer">
+                  <a href="#" class="btn btn-primary float-right" @click='syncCLipboard'>Sync Text</a>
+                </div>
+              </div>
+            </div>
+            <div class="col" v-if='clipboard_image'>
+              <div class="card">
+                <div class="card-body">
+                  <div class="text-center">
+                    <img :src='clipboard_image' class="img-thumbnail" style="max-width: 200px;max-height: 200px;">
+                  </div>
+                </div>
+                <div class="card-footer">
+                  <a href="#" class="btn btn-primary float-right" @click='syncCLipboard'>Sync Image</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-danger" v-if='partners.length===0'>No online partner</div>
+          <div class="alert alert-success" v-else>
+            <p>Online partner</p>
+            <ul>
+              <li v-for='p in partners'>{{p.host_name}}<kbd>{{p.remote_address}}</kbd></li>
+            </ul>
+          </div>
         </div>
         <!-- FileDragDrop -->
         <div class="tab-pane fade" id="nav-file" role="tabpanel" aria-labelledby="file-tab">
@@ -44,31 +71,37 @@
                 v-text='file_path'></div>
             </div>
             <div>
-              <button class="btn btn-primary" @click='chooseFile'>选择</button>或拖动文件到此处
+              <button class="btn btn-primary" @click='chooseFile'>Choose</button> Or drop file here
             </div>
+            <p>Send file to all partners</p>
           </div>
         </div>
         <!-- Settings -->
         <div class="tab-pane fade" id="nav-settings" role="tabpanel" aria-labelledby="settings-tab">
           <div class="alert alert-success" role="alert">
-            <span>当前配对码 <strong v-text='pair_code'></strong></span>
-            <button class="btn btn-sm btn-success float-right" data-toggle="modal" data-target="#codeModal">修改</button>
+            <span>Current pair code <strong v-text='pair_code'></strong></span>
+            <button class="btn btn-sm btn-success float-right" data-toggle="modal"
+              data-target="#codeModal">Modify</button>
           </div>
           <div class="alert alert-warning" role="alert">
             <div class="input-group">
               <div class="input-group-prepend">
-                <span class="input-group-text">文件存储路径</span>
+                <span class="input-group-text">File store location</span>
               </div>
-              <input type="text" class="form-control" placeholder="选择文件存储目录" aria-label="file path"
+              <input type="text" class="form-control" placeholder="Choose file store location" aria-label="file path"
                 aria-describedby="button-addon2" :value='file_folder' disabled>
               <div class="input-group-append">
-                <button class="btn btn-primary" type="button" id="button-addon2" @click='chooseFolder'>选择</button>
+                <button class="btn btn-primary" type="button" id="button-addon2" @click='chooseFolder'>Choose</button>
               </div>
             </div>
           </div>
           <div class="alert alert-info" role="alert">
             <input type="checkbox" name="startup" id="startup_chk" v-model='autostart' @change='toggleAutostart'>
-            <label for="startup_chk">开机启动</label>
+            <label for="startup_chk">Startup on login</label>
+          </div>
+          <div class="alert alert-success" role="alert">
+            <input type="checkbox" name="restore" id="restore_chk" v-model='autorestore' @change='toggleAutorestore'>
+            <label for="restore_chk">Restore window when clipboard change</label>
           </div>
         </div>
       </div>
@@ -78,7 +111,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="codeModalLabel">修改配对码</h5>
+            <h5 class="modal-title" id="codeModalLabel">Modify pair code</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
@@ -94,9 +127,9 @@
               @click='temp_code=temp_code.length<4?temp_code+c:temp_code'></button>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
             <button type="button" class="btn btn-primary" :disabled='temp_code.length!=4'
-              @click='changePairCode'>确认</button>
+              @click='changePairCode'>Confirm</button>
           </div>
         </div>
       </div>
@@ -106,8 +139,10 @@
   <script src="assets/jquery-3.5.1.slim.min.js" onload="window.$=window.jQuery=module.exports;"></script>
   <script src="assets/bootstrap-4.6.0-dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const { ipcRenderer, remote } = require('electron');
+    const { ipcRenderer, remote, clipboard } = require('electron');
     const { hostname } = require('os');
+    const fs = require('fs');
+    const path = require('path');
     const axios = require('axios');
     const Store = require('electron-store');
     const store = new Store();
@@ -115,11 +150,15 @@
       el: '#app',
       data: {
         autostart: store.get('autostart', false),
+        autorestore: store.get('autorestore', false),
         file_folder: store.get('file_folder', remote.app.getPath('desktop')),
         file_path: '',
         all_code: require('../helper').CODE.split(''),
         pair_code: store.get('pair_code', 'E418'),
         temp_code: '',
+        clipboard_text: '',
+        clipboard_image: '',
+        clipboard_image_path: '',
         partners: []
       },
       methods: {
@@ -128,6 +167,9 @@
         },
         toggleAutostart() {
           ipcRenderer.send('autostart-changed', this.autostart);
+        },
+        toggleAutorestore() {
+          store.set('autorestore', this.autorestore);
         },
         chooseFile() {
           let vm = this;
@@ -177,6 +219,44 @@
                 progress_bar.addClass('bg-success').removeClass('bg-warning progress-bar-animated progress-bar-striped');
               } else {
                 progress_bar.addClass('bg-danger').removeClass('bg-warning progress-bar-animated progress-bar-striped').text(res);
+              }
+            });
+          }
+        },
+        syncCLipboard() {
+          let vm = this;
+          if (vm.partners.length === 0) {
+            remote.dialog.showMessageBox(remote.getCurrentWindow(), {
+              type: 'warning',
+              title: 'Tips',
+              message: 'No partner online'
+            });
+            return;
+          }
+          if (vm.clipboard_text) {
+            Promise.all(vm.partners.map(p => axios.put(`http://${p.remote_address}:${p.http_port}/clipboard`, {
+              text: vm.clipboard_text
+            }))).then(res => {
+              remote.dialog.showMessageBox(remote.getCurrentWindow(), {
+                type: 'info',
+                title: 'Tips',
+                message: 'Text sync success!'
+              });
+            }).catch(err => {
+              remote.dialog.showMessageBox(remote.getCurrentWindow(), {
+                type: 'error',
+                title: 'Text sync fail',
+                message: err.message
+              });
+            });
+          } else if (vm.clipboard_image) {
+            ipcRenderer.invoke('upload', vm.clipboard_image_path, 'clipboard').then(res => {
+              if (true === res) {
+                remote.dialog.showMessageBox(remote.getCurrentWindow(), {
+                  type: 'info',
+                  title: 'Tips',
+                  message: 'Image sync success!'
+                });
               }
             });
           }
@@ -234,6 +314,33 @@
         });
       });
     }, 2000);
+    // check clipboard
+    setInterval(() => {
+      let changed = false;
+      let ni = clipboard.readImage();
+      let img_data = '';
+      if (!ni.isEmpty()) {
+        img_data = ni.toDataURL();
+      }
+      if (vue.clipboard_image != img_data) {
+        vue.clipboard_image = img_data;
+        changed = true;
+        vue.clipboard_image_path = path.join(remote.app.getPath('temp'), Date.now() + '.png');
+        fs.writeFile(vue.clipboard_image_path, ni.toPNG(), () => {
+          console.log(vue.clipboard_image_path);
+        });
+      }
+      let txt_data = clipboard.readText();
+      if (vue.clipboard_text != txt_data) {
+        vue.clipboard_text = txt_data;
+        changed = true;
+      }
+      if (changed && vue.autorestore) {
+        let win = remote.getCurrentWindow();
+        win.restore();
+        win.moveTop();
+      }
+    }, 1000);
   </script>
 </body>
 
